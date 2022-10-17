@@ -28,9 +28,10 @@ public class CameraCtrl : MonoBehaviour
 
     private void Update()
     {
-        if (Input.GetMouseButton(0))
+        if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
         {
             Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Confined;
             curPan += Input.GetAxis("Mouse X") * camSpeed;
             curTilt -= Input.GetAxis("Mouse Y") * camSpeed;
             curTilt = Mathf.Clamp(curTilt, -yMax, yMax);
@@ -40,6 +41,7 @@ public class CameraCtrl : MonoBehaviour
         else
         {
             Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
         }
 
         dist -= Input.GetAxis("Mouse ScrollWheel") * camSpeed;

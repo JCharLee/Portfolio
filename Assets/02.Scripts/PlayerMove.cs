@@ -4,16 +4,24 @@ using UnityEngine;
 
 public class PlayerMove : MonoBehaviour
 {
+    public enum Mode { None, Melee, Range }
+    public Mode mode;
+
     public float moveSpeed;
     public float aimSpeed;
     public float rotSpeed;
     public float jumpForce;
 
+    public GameObject meleeWeapon;
+    public GameObject rangeWeapon;
+    public CameraCtrl camCtrl;
+
     float h, v;
-    Vector3 target;
 
     bool isJump;
-    bool keyMoving;
+    bool isMelee;
+    bool isRange;
+    bool isCombat;
 
     Animator anim;
     Rigidbody rb;
@@ -23,19 +31,19 @@ public class PlayerMove : MonoBehaviour
     readonly int jumpMotion = Animator.StringToHash("IsJump");
     readonly int airMotion = Animator.StringToHash("OnAir");
     readonly int speedFloat = Animator.StringToHash("Speed");
-    readonly int rifleMode = Animator.StringToHash("RifleOn");
-    readonly int aimMode = Animator.StringToHash("Aim");
+    readonly int speedX = Animator.StringToHash("MoveX");
+    readonly int speedY = Animator.StringToHash("MoveY");
+    readonly int modeCombat = Animator.StringToHash("IsCombat");
+    readonly int modeMelee = Animator.StringToHash("IsMelee");
+    readonly int modeRange = Animator.StringToHash("IsRange");
 
     void Awake()
     {
+        mode = Mode.None;
+
         anim = GetComponent<Animator>();
         rb = GetComponent<Rigidbody>();
         mainCam = Camera.main;
-    }
-
-    void Start()
-    {
-        //target = transform.position;
     }
 
     void OnCollisionEnter(Collision collision)
@@ -58,60 +66,51 @@ public class PlayerMove : MonoBehaviour
 
     void Update()
     {
-        KeyMove();
-        MouseMove();
+        Movement();
         Sprint();
         Jump();
+        ModeChange();
     }
 
-    void KeyMove()
+    void Movement()
     {
         h = Input.GetAxis("Horizontal");
         v = Input.GetAxis("Vertical");
 
-        if (h != 0 || v != 0)
-            anim.SetBool(isMove, true);
-        else
-            anim.SetBool(isMove, false);
-
         Vector3 moveDir = Rotating(h, v);
-        if (!(h == 0 && v == 0))
+        transform.position += moveDir.normalized * moveSpeed * Time.deltaTime;
+        if (Input.GetMouseButton(1))
         {
-            keyMoving = true;
-            transform.position += moveDir.normalized * moveSpeed * Time.deltaTime;
-            transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(moveDir), rotSpeed * Time.deltaTime);
-        }
-        else
-            keyMoving = false;
-    }
-
-    void MouseMove()
-    {
-        if (keyMoving) return;
-
-        if (Input.GetMouseButtonDown(1))
-        {
-            Ray ray = mainCam.ScreenPointToRay(Input.mousePosition);
-            RaycastHit hit;
-
-            if (Physics.Raycast(ray, out hit, Mathf.Infinity))
+            isCombat = true;
+            transform.rotation = Quaternion.LookRotation(Rotating(0f, 1f));
+            transform.Rotate(Vector3.up * Input.GetAxis("Mouse X") * camCtrl.camSpeed);
+            if (Moving())
             {
-                target = hit.point;
-            }
-        }
-        Vector3 dir = target - transform.position;
-        Vector3 rotDir = new Vector3(dir.x, 0f, dir.z);
-        if (!keyMoving)
-        {
-            if (Vector3.Distance(transform.position, target) > 0.01f)
-            {
-                transform.position += dir.normalized * moveSpeed * Time.deltaTime;
-                transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(rotDir), rotSpeed * Time.deltaTime);
-                anim.SetBool(isMove, true);
+                anim.SetFloat(speedX, h, 0.1f, Time.deltaTime);
+                anim.SetFloat(speedY, v, 0.1f, Time.deltaTime);
             }
             else
-                anim.SetBool(isMove, false);
+            {
+                anim.SetFloat(speedX, 0f, 0.1f, Time.deltaTime);
+                anim.SetFloat(speedY, 0f, 0.1f, Time.deltaTime);
+            }
         }
+        else
+        {
+            isCombat = false;
+            if (Moving())
+                transform.rotation = Quaternion.Lerp(transform.rotation, Quaternion.LookRotation(moveDir), rotSpeed * Time.deltaTime);
+        }
+        anim.SetBool(modeCombat, Input.GetMouseButton(1));
+        anim.SetBool(isMove, Moving());
+    }
+
+    bool Moving()
+    {
+        if (!(h == 0 && v == 0))
+            return true;
+        else
+            return false;
     }
 
     Vector3 Rotating(float horizontal, float vertical)
@@ -142,6 +141,8 @@ public class PlayerMove : MonoBehaviour
 
     void Sprint()
     {
+        if (isMelee || isRange) return;
+
         if (Input.GetKey(KeyCode.LeftShift))
         {
             moveSpeed = 8f;
@@ -151,6 +152,37 @@ public class PlayerMove : MonoBehaviour
         {
             moveSpeed = 5f;
             anim.SetFloat(speedFloat, 0f, 0.1f, Time.deltaTime);
+        }
+    }
+
+    void ModeChange()
+    {
+        if (Input.GetKeyDown(KeyCode.BackQuote))
+        {
+            switch (mode)
+            {
+                case Mode.None:
+                    mode = Mode.Melee;
+                    meleeWeapon.SetActive(true);
+                    isMelee = true;
+                    anim.SetBool(modeMelee, true);
+                    break;
+                case Mode.Melee:
+                    mode = Mode.Range;
+                    meleeWeapon.SetActive(false);
+                    rangeWeapon.SetActive(true);
+                    isMelee = false;
+                    isRange = true;
+                    anim.SetBool(modeMelee, false);
+                    anim.SetBool(modeRange, true);
+                    break;
+                case Mode.Range:
+                    mode = Mode.None;
+                    rangeWeapon.SetActive(false);
+                    isRange = false;
+                    anim.SetBool(modeRange, false);
+                    break;
+            }
         }
     }
 }
