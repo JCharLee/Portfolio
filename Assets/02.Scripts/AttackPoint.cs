@@ -4,9 +4,17 @@ using UnityEngine;
 
 public class AttackPoint : MonoBehaviour
 {
+    Bear bear;
+
     private void OnEnable()
     {
-        StartCoroutine(AutoDisable());
+        StartCoroutine("AutoDisable");
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        bear = other.GetComponent<Bear>();
+        bear.OnDamage();
     }
 
     IEnumerator AutoDisable()

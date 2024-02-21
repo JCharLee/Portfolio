@@ -13,31 +13,40 @@ public class CameraCtrl : MonoBehaviour
     public Transform tilt;
     public Camera mainCam;
 
+    public GameManager manager;
+
     float maxDist = 10f;
     float yMax = 90f;
 
     void Start()
     {
-        transform.position = player.transform.position + (Vector3.up * height);
-        transform.rotation = player.transform.rotation;
-        tilt.eulerAngles = new Vector3(curTilt, transform.eulerAngles.y, transform.eulerAngles.z);
-        mainCam.transform.position += tilt.forward * -dist;
+        mainCam.transform.position = transform.position + tilt.forward * -dist;
     }
 
     void Update()
     {
+        // 마우스 커서
         Cursor.visible = false;
         Cursor.lockState = CursorLockMode.Locked;
 
+        if (manager.gameStart)
+            CamCtrl();
+    }
+
+    void CamCtrl()
+    {
+        // 카메라 각도 조절
         curPan += Input.GetAxis("Mouse X") * camSpeed;
         curTilt -= Input.GetAxis("Mouse Y") * camSpeed;
         curTilt = Mathf.Clamp(curTilt, -yMax, yMax);
         Vector3 playerDir = player.transform.eulerAngles;
         playerDir.y = transform.eulerAngles.y;
 
+        // 카메라 거리 조절
         dist -= Input.GetAxis("Mouse ScrollWheel") * camSpeed;
         dist = Mathf.Clamp(dist, 0f, maxDist);
 
+        // 카메라 충돌 처리
         Vector3 castDir = (mainCam.transform.position - transform.position).normalized;
         Debug.DrawRay(transform.position, castDir, Color.green);
         RaycastHit hit;
@@ -55,6 +64,7 @@ public class CameraCtrl : MonoBehaviour
 
     void LateUpdate()
     {
+        // 카메라 추적
         transform.position = player.transform.position + (Vector3.up * height);
         transform.eulerAngles = new Vector3(transform.eulerAngles.x, curPan, transform.eulerAngles.z);
         tilt.eulerAngles = new Vector3(curTilt, tilt.eulerAngles.y, tilt.eulerAngles.z);
