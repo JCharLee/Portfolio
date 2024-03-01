@@ -13,27 +13,34 @@ public class Player : MonoBehaviour
     public Animator anim;
     public Rigidbody rb;
 
-    [Header("움직임 변수")]
-    public float moveSpeed;
-    public float rotSpeed;
-    public float jumpForce;
-    public bool jumping;
-
-    [Header("공격 변수")]
-    public bool attacking;
-    public GameObject attackPoint;
-
-    [Header("타겟 변수")]
-    public LayerMask targetMask;
-    public Collider[] cols;
-    public float targetRecogRange;
-    public TargetDistInfo targetDistInfo;
-    public GameObject targetEnemy;
-
+    [Header("클래스 변수")]
     public Camera mainCam;
     public GameManager manager;
 
+    [Header("움직임 관련 변수")]
+    public float moveSpeed;     // 이동 속도
+    public float rotSpeed;      // 회전 속도
+    public float jumpForce;     // 점프 파워
+    public bool jumping;        // 점프중
     float h, v;
+
+    [Header("공격 관련 변수")]
+    public bool attacking;          // 공격중
+    public GameObject attackPoint;  // 공격 범위
+
+    [Header("타겟 관련 변수")]
+    public GameObject targetEnemy;          // 현재 적 타겟
+    public LayerMask enemyMask;             // 적 레이어
+    public Collider[] enemyCols;            // 인지 범위 내 적 콜라이더
+    public float enemyRecogRange;           // 적 인지 범위 거리
+    public TargetDistInfo enemyDistInfo;    // 적 타겟의 거리 정보
+
+    [Header("상호작용 관련 변수")]
+    public GameObject interactionTarget;    // 상호작용 타겟
+    public LayerMask interactableMask;      // 상호작용 레이어
+    public Collider[] interactableCols;     // 인지 범위 내 상호작용 콜라이더
+    public float interactableRecogRange;    // 상호작용 인지 범위 거리
+    IInteraction interactable;
 
     void Start()
     {
@@ -48,6 +55,7 @@ public class Player : MonoBehaviour
             Attack();
             Jump();
             EnemyTargeting();
+            Interaction();
         }
     }
 
@@ -156,30 +164,46 @@ public class Player : MonoBehaviour
     // 적 타겟을 인지 범위 안에서 감지하고 가장 가까운 적을 타겟팅
     void EnemyTargeting()
     {
-        cols = Physics.OverlapSphere(transform.position, targetRecogRange, targetMask);
+        enemyCols = Physics.OverlapSphere(transform.position, enemyRecogRange, enemyMask);
 
-        foreach (Collider col in cols)
+        foreach (Collider col in enemyCols)
         {
             float dist = Vector3.Distance(col.transform.position, transform.position);
-            if (!targetDistInfo.ContainsKey(col.gameObject))
-                targetDistInfo.Add(col.gameObject, dist);
-            targetDistInfo[col.gameObject] = dist;
+            if (!enemyDistInfo.ContainsKey(col.gameObject))
+                enemyDistInfo.Add(col.gameObject, dist);
+            enemyDistInfo[col.gameObject] = dist;
         }
 
-        foreach (GameObject target in targetDistInfo.Keys)
+        foreach (GameObject target in enemyDistInfo.Keys)
         {
             Collider col = target.GetComponent<Collider>();
-            if (!cols.Contains(col))
+            if (!enemyCols.Contains(col))
             {
-                targetDistInfo.Remove(target);
+                enemyDistInfo.Remove(target);
                 break;
             }
         }
 
-        if (targetDistInfo.Count != 0)
-            targetEnemy = targetDistInfo.Aggregate((x, y) => x.Value < y.Value ? x : y).Key;
+        if (enemyDistInfo.Count != 0)
+            targetEnemy = enemyDistInfo.Aggregate((x, y) => x.Value < y.Value ? x : y).Key;
         else
             targetEnemy = null;
+    }
+
+    void Interaction()
+    {
+        interactableCols = Physics.OverlapSphere(transform.position, interactableRecogRange, interactableMask);
+        if (interactableCols.Length > 0)
+        {
+            interactionTarget = interactableCols[0].gameObject;
+            interactable = interactionTarget.GetComponent<IInteraction>();
+            if (Input.GetKeyDown(KeyCode.F))
+            {
+                interactable.Action(this);
+            }
+        }
+        else
+            interactionTarget = null;
     }
 
     void OnCollisionEnter(Collision collision)
