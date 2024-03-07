@@ -25,8 +25,9 @@ public class Player : MonoBehaviour
     float h, v;
 
     [Header("공격 관련 변수")]
+    public float attackDist;        // 공격 거리
     public bool attacking;          // 공격중
-    public GameObject attackPoint;  // 공격 범위
+    public GameObject attackPoint;  // 근접 공격 범위
 
     [Header("타겟 관련 변수")]
     public GameObject targetEnemy;          // 현재 적 타겟
@@ -59,6 +60,14 @@ public class Player : MonoBehaviour
         }
     }
 
+    private void OnDrawGizmos()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, enemyRecogRange);
+        Gizmos.DrawWireSphere(transform.position, attackDist);
+    }
+
+    #region [기본 움직임]
     void Move()
     {
         h = Input.GetAxis("Horizontal");
@@ -92,35 +101,6 @@ public class Player : MonoBehaviour
         return newDir;
     }
 
-    void Attack()
-    {
-        if (Input.GetMouseButtonDown(0) && !jumping)
-        {
-            if (targetEnemy != null)
-            {
-                if (!attacking)
-                    StartCoroutine("Rush");
-                transform.rotation = Quaternion.LookRotation(targetEnemy.transform.position - transform.position);
-            }
-
-            attacking = true;
-            anim.SetTrigger("Attack");
-        }
-    }
-
-    IEnumerator Rush()
-    {
-        float dist = (targetEnemy.transform.position - transform.position).magnitude;
-
-        while (dist > 2f)
-        {
-            transform.position = Vector3.MoveTowards(transform.position, targetEnemy.transform.position, 10f * Time.deltaTime);
-            dist = (targetEnemy.transform.position - transform.position).magnitude;
-            anim.SetBool("IsMove", true);
-            yield return null;
-        }
-    }
-
     void Jump()
     {
         if (Input.GetKeyDown(KeyCode.Space))
@@ -133,35 +113,32 @@ public class Player : MonoBehaviour
             }
         }
     }
+    #endregion
 
-    // 콤보를 위한 마우스 클릭 인식 애니메이션 이벤트
-    public void ComboStartCheck()
+    #region [공격]
+    void Attack()
     {
-        anim.SetBool("IsCombo", false);
-        StartCoroutine(ComboAttack());
-
-        IEnumerator ComboAttack()
+        if (Input.GetMouseButtonDown(0) && !jumping)
         {
-            yield return new WaitUntil(() => Input.GetMouseButtonDown(0));
-            anim.SetBool("IsCombo", true);
+            if (targetEnemy != null)
+            {
+                if (!attacking)
+                    StartCoroutine(Rush());
+                transform.rotation = Quaternion.LookRotation(targetEnemy.transform.position - transform.position);
+            }
+
+            attacking = true;
+            anim.SetTrigger("Attack");
         }
     }
 
-    public void ComboEndCheck()
-    {
-        if (!anim.GetBool("IsCombo"))
-        {
-            attacking = false;
-            anim.ResetTrigger("Attack");
-        }
-    }
-
+    // 공격 범위 활성화
     public void AttackPointActive()
     {
         attackPoint.SetActive(true);
     }
 
-    // 적 타겟을 인지 범위 안에서 감지하고 가장 가까운 적을 타겟팅
+    // 적 타겟을 인지 범위 안에서 감지하고 가장 가까운 적을 타겟
     void EnemyTargeting()
     {
         enemyCols = Physics.OverlapSphere(transform.position, enemyRecogRange, enemyMask);
@@ -189,6 +166,45 @@ public class Player : MonoBehaviour
         else
             targetEnemy = null;
     }
+
+    // 공격시 타겟 적에게 돌진
+    IEnumerator Rush()
+    {
+        float dist = (targetEnemy.transform.position - transform.position).magnitude;
+
+        while (dist > attackDist)
+        {
+            transform.position = Vector3.MoveTowards(transform.position, targetEnemy.transform.position, 10f * Time.deltaTime);
+            dist = (targetEnemy.transform.position - transform.position).magnitude;
+            anim.SetBool("IsMove", true);
+            yield return null;
+        }
+    }
+    #endregion
+
+    #region [콤보]
+    // 콤보를 위한 마우스 클릭 인식 애니메이션 이벤트
+    public void ComboStartCheck()
+    {
+        anim.SetBool("IsCombo", false);
+        StartCoroutine(ComboAttack());
+
+        IEnumerator ComboAttack()
+        {
+            yield return new WaitUntil(() => Input.GetMouseButtonDown(0));
+            anim.SetBool("IsCombo", true);
+        }
+    }
+
+    public void ComboEndCheck()
+    {
+        if (!anim.GetBool("IsCombo"))
+        {
+            attacking = false;
+            anim.ResetTrigger("Attack");
+        }
+    }
+    #endregion
 
     void Interaction()
     {
