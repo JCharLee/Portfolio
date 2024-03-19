@@ -1,10 +1,12 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 
 public class AttackPoint : MonoBehaviour
 {
-    Bear bear;
+    PlayerHealth playerHealth;
+    BearHealth bearHealth;
 
     private void OnEnable()
     {
@@ -13,8 +15,17 @@ public class AttackPoint : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        bear = other.GetComponent<Bear>();
-        bear.OnDamage();
+        switch(other.tag)
+        {
+            case "Player":
+                playerHealth = other.GetComponent<PlayerHealth>();
+                playerHealth.OnDamage();
+                break;
+            case "Enemy":
+                bearHealth = other.GetComponent<BearHealth>();
+                bearHealth.OnDamage();
+                break;
+        }
     }
 
     IEnumerator AutoDisable()

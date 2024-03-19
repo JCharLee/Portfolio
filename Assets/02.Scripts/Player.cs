@@ -26,6 +26,7 @@ public class Player : MonoBehaviour
 
     [Header("공격 관련 변수")]
     public float attackDist;        // 공격 거리
+    public float damage;
     public bool attacking;          // 공격중
     public GameObject attackPoint;  // 근접 공격 범위
 
@@ -132,7 +133,7 @@ public class Player : MonoBehaviour
         }
     }
 
-    // 공격 범위 활성화
+    // 공격 포인트 활성화
     public void AttackPointActive()
     {
         attackPoint.SetActive(true);
@@ -182,30 +183,7 @@ public class Player : MonoBehaviour
     }
     #endregion
 
-    #region [콤보]
-    // 콤보를 위한 마우스 클릭 인식 애니메이션 이벤트
-    public void ComboStartCheck()
-    {
-        anim.SetBool("IsCombo", false);
-        StartCoroutine(ComboAttack());
-
-        IEnumerator ComboAttack()
-        {
-            yield return new WaitUntil(() => Input.GetMouseButtonDown(0));
-            anim.SetBool("IsCombo", true);
-        }
-    }
-
-    public void ComboEndCheck()
-    {
-        if (!anim.GetBool("IsCombo"))
-        {
-            attacking = false;
-            anim.ResetTrigger("Attack");
-        }
-    }
-    #endregion
-
+    // 상호작용
     void Interaction()
     {
         interactableCols = Physics.OverlapSphere(transform.position, interactableRecogRange, interactableMask);

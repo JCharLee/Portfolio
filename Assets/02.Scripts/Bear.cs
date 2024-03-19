@@ -6,13 +6,34 @@ using UnityEngine.AI;
 public class Bear : MonoBehaviour
 {
     public enum State { idle, patrol, chase, goBack, attack, die }
+    [Header("상태")]
     public State state = State.idle;
+
+    [Header("컴포넌트 변수")]
+    public Animator anim;
+    public NavMeshAgent agent;
+    public BearHealth health;
+
+    [Header("공격 변수")]
+    public float damage;
+    public float attackSpd;
+    public bool attacking;
+    public GameObject attackPoint;
+
+    [Header("WayPoint 지정 변수")]
     public int nextIdx;
+    public List<Vector3> wayPoint;
+
+    [Header("NavMeshAgent 변수")]
     public float patrolSpeed;
     public float chaseSpeed;
     public float damping;
+
+    [Header("범위 변수")]
     public float chaseRange;
     public float attackDist;
+
+    [Header("상태 bool 변수")]
     public bool isCombat;
     public bool isPatrol;
     public bool isChase;
@@ -20,11 +41,10 @@ public class Bear : MonoBehaviour
     public bool isAttack;
     public bool isDie;
 
+    [Header("플레이어 변수")]
     public LayerMask playerMask;
     public GameObject player;
-    public Animator anim;
-    public NavMeshAgent agent;
-    public List<Vector3> wayPoint;
+    
 
     void Start()
     {
@@ -126,6 +146,12 @@ public class Bear : MonoBehaviour
         agent.velocity = Vector3.zero;
         isPatrol = false;
     }
+
+    // 공격 포인트 활성화
+    public void AttackPointActive()
+    {
+        attackPoint.SetActive(true);
+    }
     #endregion
 
     #region [행동 코루틴]
@@ -182,7 +208,8 @@ public class Bear : MonoBehaviour
                     isAttack = true;
                     anim.SetBool("IsChase", false);
                     anim.SetTrigger("OnAttack");
-                    anim.SetInteger("AttackIdx", Random.Range(0, 3));
+                    anim.SetInteger("AttackIdx", Random.Range(0, 4));
+                    yield return new WaitForSeconds(attackSpd);
                     break;
                 case State.die:
                     Stop();
@@ -227,9 +254,4 @@ public class Bear : MonoBehaviour
         }
     }
     #endregion
-
-    public void OnDamage()
-    {
-        anim.SetTrigger("OnHit");
-    }
 }
