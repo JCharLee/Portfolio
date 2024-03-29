@@ -19,7 +19,8 @@ public class PlayerHealth : MonoBehaviour
 
     void Start()
     {
-        
+        hpText.text = $"{hp} / {initHp}";
+        hpBar.fillAmount = (hp / initHp);
     }
 
     void Update()

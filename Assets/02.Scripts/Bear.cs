@@ -11,6 +11,7 @@ public class Bear : MonoBehaviour
 
     [Header("컴포넌트 변수")]
     public Animator anim;
+    public Collider col;
     public NavMeshAgent agent;
     public BearHealth health;
 
@@ -25,8 +26,8 @@ public class Bear : MonoBehaviour
     public List<Vector3> wayPoint;
 
     [Header("NavMeshAgent 변수")]
-    public float patrolSpeed;
-    public float chaseSpeed;
+    public float moveSpeed;
+    public float runSpeed;
     public float damping;
 
     [Header("범위 변수")]
@@ -35,6 +36,7 @@ public class Bear : MonoBehaviour
 
     [Header("상태 bool 변수")]
     public bool isCombat;
+    public bool isIdle;
     public bool isPatrol;
     public bool isChase;
     public bool isReturn;
@@ -44,16 +46,24 @@ public class Bear : MonoBehaviour
     [Header("플레이어 변수")]
     public LayerMask playerMask;
     public GameObject player;
-    
+
+    WaitForSeconds ws = new WaitForSeconds(0.3f);
+    IEnumerator actionRoutine;
+    IEnumerator checkRoutine;
+    IEnumerator standbyRoutine;
+    IEnumerator attackRoutine;
 
     void Start()
     {
         agent.autoBraking = false;
         agent.updateRotation = false;
 
+        actionRoutine = Action();
+        checkRoutine = CheckState();
+
         SetWayPoint();
-        StartCoroutine(Action());
-        StartCoroutine(CheckState());
+        StartCoroutine(actionRoutine);
+        StartCoroutine(checkRoutine);
     }
 
     void Update()
@@ -66,13 +76,17 @@ public class Bear : MonoBehaviour
             transform.rotation = Quaternion.Slerp(transform.rotation, rot, Time.deltaTime * damping);
         }
 
+        if (state == State.attack)
+        {
+            transform.LookAt(player.transform);
+        }
+
         if (!isPatrol) return;
 
         if (agent.velocity.sqrMagnitude >= 0.2f * 0.2f && agent.remainingDistance <= 0.5f)
         {
             state = State.idle;
             nextIdx = Random.Range(0, wayPoint.Count);
-            Patrol();
         }
     }
 
@@ -84,6 +98,8 @@ public class Bear : MonoBehaviour
 
         Gizmos.DrawWireSphere(transform.position, chaseRange);
         Gizmos.DrawWireSphere(transform.position, attackDist);
+        Gizmos.color = Color.blue;
+        Gizmos.DrawLine(transform.position, agent.desiredVelocity);
     }
 
     // 무작위 순찰 포인트 지정
@@ -103,28 +119,57 @@ public class Bear : MonoBehaviour
     
 
     #region [상태별 행동]
+    // 대기
+    IEnumerator Standby()
+    {
+        AgentStop();
+
+        isCombat = false;
+        isIdle = true;
+        isPatrol = false;
+        isChase = false;
+        isReturn = false;
+
+        anim.SetBool("IsPatrol", false);
+        anim.SetBool("IsChase", false);
+
+        yield return new WaitForSeconds(3f);
+
+        isIdle = false;
+        if (state != State.chase)
+            state = State.patrol;
+    }
+
     // 순찰
     void Patrol()
     {
         if (agent.isPathStale) return;
 
+        AgentActive(moveSpeed, 1f, wayPoint[nextIdx]);
+
         isPatrol = true;
-        agent.speed = patrolSpeed;
-        damping = 1f;
-        agent.destination = wayPoint[nextIdx];
-        agent.isStopped = false;
+        isReturn = false;
+
+        anim.SetBool("IsPatrol", true);
+        anim.SetBool("IsChase", false);
     }
 
     // 추적
-    void Chase(Vector3 pos)
+    void Chase()
     {
         if (agent.isPathStale) return;
+        if (isReturn) return;
 
+        if (standbyRoutine != null)
+            StopCoroutine(standbyRoutine);
+        AgentActive(runSpeed, 7f, player.transform.position);
+
+        isCombat = true;
+        isPatrol = false;
         isChase = true;
-        agent.speed = chaseSpeed;
-        damping = 7f;
-        agent.destination = pos;
-        agent.isStopped = false;
+
+        anim.SetBool("IsChase", true);
+        anim.SetBool("IsPatrol", false);
     }
 
     // 복귀
@@ -132,19 +177,32 @@ public class Bear : MonoBehaviour
     {
         if (agent.isPathStale) return;
 
+        AgentActive(runSpeed, 7f, wayPoint[nextIdx]);
+
+        isCombat = false;
+        isChase = false;
         isReturn = true;
-        agent.speed = chaseSpeed;
-        damping = 7f;
-        agent.destination = wayPoint[nextIdx];
-        agent.isStopped = false;
+
+        anim.SetBool("IsChase", true);
+        anim.SetBool("IsPatrol", false);
     }
 
-    // 멈춤
-    void Stop()
+    // 공격
+    IEnumerator Attack()
     {
-        agent.isStopped = true;
-        agent.velocity = Vector3.zero;
-        isPatrol = false;
+        AgentStop();
+
+        isChase = false;
+        isAttack = true;
+
+        anim.SetBool("IsChase", false);
+        anim.SetBool("IsPatrol", false);
+        anim.SetTrigger("OnAttack");
+        anim.SetInteger("AttackIdx", Random.Range(0, 4));
+
+        yield return new WaitForSeconds(attackSpd);
+
+        isAttack = false;
     }
 
     // 공격 포인트 활성화
@@ -152,78 +210,86 @@ public class Bear : MonoBehaviour
     {
         attackPoint.SetActive(true);
     }
+
+    // 죽음
+    void Die()
+    {
+        AgentStop();
+        StopAllCoroutines();
+
+        isCombat = false;
+        isPatrol = false;
+        isChase = false;
+        isReturn = false;
+        isAttack = false;
+        isDie = true;
+
+        anim.SetTrigger("IsDie");
+        col.enabled = false;
+    }
     #endregion
 
-    #region [행동 코루틴]
+    #region [Nav 작동]
+    // NavAgent 활성
+    void AgentActive(float speed, float damp, Vector3 pos)
+    {
+        agent.speed = speed;
+        damping = damp;
+        agent.destination = pos;
+        agent.isStopped = false;
+    }
+
+    // NavAgent 멈춤
+    void AgentStop()
+    {
+        agent.isStopped = true;
+        agent.velocity = Vector3.zero;
+    }
+    #endregion
+
+    #region [상태 체크 코루틴]
     // 상태별 설정
     IEnumerator Action()
     {
         while (!isDie)
         {
-            yield return new WaitForSeconds(0.3f);
-
             switch (state)
             {
                 case State.idle:
-                    Stop();
-                    isCombat = false;
-                    isChase = false;
-                    isReturn = false;
-                    isAttack = false;
-                    anim.SetBool("IsPatrol", false);
-                    anim.SetBool("IsChase", false);
-                    yield return new WaitForSeconds(3f);
-                    state = State.patrol;
+                    if (!isIdle)
+                    {
+                        standbyRoutine = Standby();
+                        StartCoroutine(standbyRoutine);
+                        standbyRoutine = null;
+                    }
                     break;
                 case State.patrol:
                     Patrol();
-                    isCombat = false;
-                    isChase = false;
-                    isReturn = false;
-                    isAttack = false;
-                    anim.SetBool("IsPatrol", true);
-                    anim.SetBool("IsChase", false);
                     break;
                 case State.chase:
-                    Chase(player.transform.position);
-                    isCombat = true;
-                    isPatrol = false;
-                    isReturn = false;
-                    isAttack = false;
-                    anim.SetBool("IsChase", true);
-                    anim.SetBool("IsPatrol", false);
+                    Chase();
                     break;
                 case State.goBack:
                     Return();
-                    isCombat = false;
-                    isPatrol = false;
-                    isChase = false;
-                    isAttack = false;
-                    anim.SetBool("IsChase", true);
-                    anim.SetBool("IsPatrol", false);
                     break;
                 case State.attack:
-                    Stop();
-                    isChase = false;
-                    isAttack = true;
-                    anim.SetBool("IsChase", false);
-                    anim.SetTrigger("OnAttack");
-                    anim.SetInteger("AttackIdx", Random.Range(0, 4));
-                    yield return new WaitForSeconds(attackSpd);
+                    if (!isAttack)
+                    {
+                        attackRoutine = Attack();
+                        StartCoroutine(attackRoutine);
+                        attackRoutine = null;
+                    }
                     break;
                 case State.die:
-                    Stop();
-                    isCombat = false;
-                    isAttack = false;
-                    isDie = true;
-                    anim.SetTrigger("IsDie");
-                    GetComponent<CapsuleCollider>().enabled = false;
+                    Die();
                     break;
             }
+
+            yield return ws;
         }
     }
 
-    // 상태 변환
+    // 상태 체크
     IEnumerator CheckState()
     {
         yield return new WaitForSeconds(1f);
@@ -235,7 +301,7 @@ public class Bear : MonoBehaviour
             float playerDist = Vector3.Distance(player.transform.position, transform.position);
             float wayPointDist = Vector3.Distance(wayPoint[nextIdx], transform.position);
             Collider[] cols = Physics.OverlapSphere(transform.position, chaseRange, playerMask);
-            if (playerDist <= attackDist)
+            if (playerDist < attackDist)
                 state = State.attack;
             else if (cols.Length > 0)
                 state = State.chase;
@@ -249,8 +315,8 @@ public class Bear : MonoBehaviour
                 if (state != State.idle)
                     state = State.patrol;
             }
-
-            yield return new WaitForSeconds(0.3f);
+            
+            yield return ws;
         }
     }
     #endregion

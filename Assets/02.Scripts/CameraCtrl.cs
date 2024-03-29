@@ -15,12 +15,14 @@ public class CameraCtrl : MonoBehaviour
 
     public GameManager manager;
 
+    int layerMask;
     float maxDist = 10f;
     float yMax = 90f;
 
     void Start()
     {
         mainCam.transform.position = transform.position + tilt.forward * -dist;
+        layerMask = 1 << LayerMask.NameToLayer("Ground") | 1 << LayerMask.NameToLayer("Obstacle");
     }
 
     void Update()
@@ -48,9 +50,8 @@ public class CameraCtrl : MonoBehaviour
 
         // 카메라 충돌 처리
         Vector3 castDir = (mainCam.transform.position - transform.position).normalized;
-        Debug.DrawRay(transform.position, castDir, Color.green);
         RaycastHit hit;
-        if (Physics.Raycast(transform.position, castDir, out hit, dist))
+        if (Physics.Raycast(transform.position, castDir, out hit, dist, layerMask))
         {
             if (hit.point != Vector3.zero)
                 mainCam.transform.position = hit.point;
